@@ -1,0 +1,68 @@
+# CommonMapsPlugin
+
+A UE5 editor plugin for quickly switching between frequently used maps in your project.
+Inspired by the Common Maps feature from Epic Games' Lyra Starter Game.
+
+## Features
+
+- **Toolbar dropdown** — One-click access to bookmarked maps grouped by category
+- **Content Browser integration** — Right-click any Level asset to add it to a category
+- **Editor Preferences panel** — Full CRUD via Edit → Editor Preferences → Plugins → Common Maps
+- **Stale map detection** — Missing assets shown with ⚠ and disabled in the dropdown
+- **Duplicate prevention** — Adding an existing map shows a notification instead of silently failing
+- **Per-developer config** — Stored in EditorPerProjectUserSettings.ini, not source controlled
+
+## Planned
+
+- Right-click remove from category (v0.5)
+- Recent maps auto-section in toolbar (v0.6)
+- Custom drag-and-drop Editor Preferences panel (v0.7)
+
+## Engine Version
+
+UE 5.7+
+
+## Installation
+
+1. Copy `CommonMapsPlugin/` into your project's `Plugins/` directory
+2. Regenerate project files
+3. Enable via Edit → Plugins → Editor → Common Maps
+4. Restart the editor
+
+## Usage
+
+**Adding a map**
+Right-click any Level asset in the Content Browser → Add to Common Maps → pick a category
+
+**Opening a map**
+Click the Common Maps button in the toolbar → pick a map
+
+**Managing categories**
+Edit → Editor Preferences → Plugins → Common Maps
+
+## Development Phases
+
+| Tag | What was built |
+|-----|----------------|
+| `v0.1-foundation` | Module skeleton, settings class, Editor Preferences panel |
+| `v0.2-toolbar` | Toolbar dropdown with map switching |
+| `v0.3-context-menu` | Content Browser right-click to add maps |
+| `v0.4-polish` | Stale detection, notifications, meta specifiers, persistence fix |
+
+## Troubleshooting
+
+**Maps not persisting after editor restart**
+Ensure the plugin is enabled and the ini section exists at:
+`Saved/Config/WindowsEditor/EditorPerProjectUserSettings.ini`
+Look for `[/Script/CommonMaps.CommonMapSettings]`
+
+**"Add to Common Maps" not appearing on right-click**
+Only appears on Level assets (UWorld). Will not show on Blueprints, textures, etc.
+
+**Toolbar button missing**
+Check Output Log for `CommonMaps: StartupModule` — if absent the plugin didn't load.
+Verify `PostEngineInit` loading phase in `.uplugin`.
+
+## License
+
+MIT

@@ -24,3 +24,6 @@ Desktop.ini
 
 # Binary content - too large for free GitHub LFS
 Content/
+
+# Claude Code context files
+CLAUDE.md

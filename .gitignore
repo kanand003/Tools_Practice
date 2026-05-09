@@ -22,7 +22,5 @@ Thumbs.db
 Desktop.ini
 .DS_Store
 
-# Keep Content/ tracked, but ignore cooked/staged output
-Content/Collections/
-Content/__ExternalActors__/
-Content/__ExternalObjects__/
+# Binary content - too large for free GitHub LFS
+Content/

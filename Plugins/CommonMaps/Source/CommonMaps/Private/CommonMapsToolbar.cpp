@@ -13,7 +13,6 @@
 
 static const FName LevelEditorToolbarName = TEXT("LevelEditor.LevelEditorToolBar.PlayToolBar");
 
-// The name we give our dropdown menu so UToolMenus can find it when building contents.
 static const FName CommonMapsMenuName = TEXT("LevelEditor.CommonMapsDropdown");
 
 void FCommonMapsToolbar::Register()
@@ -51,7 +50,7 @@ void FCommonMapsToolbar::Unregister()
 void FCommonMapsToolbar::FillDropdownMenu(UToolMenu* Menu)
 {
 	const UCommonMapSettings* Settings = UCommonMapSettings::Get();
-	if (!Settings || Settings->MapCategories.IsEmpty())
+	if (!Settings || (Settings->MapCategories.IsEmpty() && Settings->RecentMaps.IsEmpty()))
 	{
 		FToolMenuSection& EmptySection = Menu->AddSection(TEXT("EmptyState"));
 		EmptySection.AddMenuEntry(
@@ -60,9 +59,34 @@ void FCommonMapsToolbar::FillDropdownMenu(UToolMenu* Menu)
 			NSLOCTEXT("CommonMapsPlugin", "NoMapsTooltip",
 				"Add maps via Edit -> Editor Preferences -> Plugins -> Common Maps"),
 			FSlateIcon(),
-			FUIAction() 
+			FUIAction()
 		);
 		return;
+	}
+
+	// Pinned "Recent" section — auto-managed, shown above all categories.
+	if (!Settings->RecentMaps.IsEmpty())
+	{
+		FToolMenuSection& RecentSection = Menu->AddSection(
+			TEXT("RecentMaps"),
+			NSLOCTEXT("CommonMapsPlugin", "RecentLabel", "Recent")
+		);
+
+		for (const FSoftObjectPath& MapPath : Settings->RecentMaps)
+		{
+			if (!MapPath.IsValid())
+			{
+				continue;
+			}
+
+			RecentSection.AddMenuEntry(
+				FName(*FString::Printf(TEXT("Recent_%s"), *MapPath.GetAssetName())),
+				FText::FromString(MapPath.GetAssetName()),
+				FText::FromString(MapPath.GetAssetPathString()),
+				FSlateIcon(),
+				FUIAction(FExecuteAction::CreateStatic(&FCommonMapsToolbar::OpenMap, MapPath))
+			);
+		}
 	}
 
 	// One section per category, so they appear as labelled groups in the dropdown.

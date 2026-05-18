@@ -67,8 +67,25 @@ public:
 	 * All map categories. Add, remove and reorder them freely in Editor Preferences.
 	 * Changes are saved immediately when you modify them in the panel.
 	 */
-	UPROPERTY(EditAnywhere, Config, Category = "Common Maps", meta = (DisplayName = "Map Categories",NoResetToDefault))
+	UPROPERTY(EditAnywhere, Config, Category = "Common Maps", meta = (DisplayName = "Map Categories", NoResetToDefault))
 	TArray<FCommonMapCategory> MapCategories;
+
+	/**
+	 * Auto-populated list of recently opened maps (managed by the plugin, not editable directly).
+	 * Shown as a pinned section at the top of the toolbar dropdown.
+	 */
+	UPROPERTY(Config)
+	TArray<FSoftObjectPath> RecentMaps;
+
+	/** Maximum number of recent maps to remember. */
+	UPROPERTY(EditAnywhere, Config, Category = "Common Maps", meta = (DisplayName = "Max Recent Maps", ClampMin = 1, ClampMax = 20))
+	int32 MaxRecentMaps = 5;
+
+	/**
+	 * Pushes MapPath to the front of RecentMaps, deduplicates, trims to MaxRecentMaps, and saves.
+	 * Safe to call from any editor context.
+	 */
+	void PushRecentMap(const FSoftObjectPath& MapPath);
 
 	virtual FName GetCategoryName() const override { return TEXT("Plugins"); }
 

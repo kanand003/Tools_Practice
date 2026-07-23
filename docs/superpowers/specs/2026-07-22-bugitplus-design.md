@@ -9,15 +9,28 @@ Improve the engine's native `BugIt`/`BugItGo` workflow. Primary goal is a workfl
 improvement for daily use; secondary goal is a portfolio piece demonstrating clean
 Runtime/Editor module separation in an Unreal Engine plugin.
 
-`BugIt`/`BugItGo` are exec functions on `APlayerController`. They capture the current
-camera location/rotation plus a screenshot, and let you paste the location string back
-in to teleport to that exact spot. The plugin adds two specific improvements without
-touching or requiring changes to the native commands:
+Verified against the UE 5.7 engine source (`EditorServer.cpp`, `CheatManager.cpp`),
+vanilla `BugIt`/`BugItGo` are actually **two separate implementations**, not one:
 
-1. The generated "go back" string is copied straight to the clipboard instead of
-   requiring a trip into the `Saved/Bugit` text file.
-2. The "go back" string also works across maps — if you paste it while a different
-   map is open, the tool switches maps first, then applies the saved location.
+- **Editor-browsing path** — `UEditorEngine::HandleBugItCommand`/`HandleBugItGoCommand`
+  (`UnrealEd` module). Only runs when not in PIE. Captures the level-viewport camera,
+  builds `"BugItGo X Y Z Pitch Yaw Roll"`, and **already copies it to the clipboard**.
+  No screenshot, no file, no map name, no description.
+- **In-game path** — `UCheatManager::BugIt`/`BugItGo` (`Engine` module — runs in PIE and
+  packaged non-shipping builds). Takes a screenshot, writes a `.txt` report to
+  `Saved/BugIt/<PlatformName>/<desc>/` including the map name, and teleports the pawn
+  on `BugItGo` — but does **not** copy anything to the clipboard, and `BugItGo` has no
+  map-switch logic at all (it just teleports on whatever map is currently loaded).
+
+The plugin adds two specific improvements without touching or requiring changes to
+either native command:
+
+1. **Clipboard copy for the in-game path.** The editor-browsing path already copies
+   its go-string to the clipboard; the in-game path (PIE/packaged) is the one missing
+   it today. `BugItPlus` closes that gap so both paths behave consistently.
+2. **Cross-map jump, for both paths.** Neither native path switches maps today — if
+   you paste a go-string while a different map is open, the tool switches maps first,
+   then applies the saved location.
 
 ## Non-goals (v1)
 
@@ -37,10 +50,13 @@ design:
 
 ## Command hookup
 
-Native `BugIt`/`BugItGo` are exec functions on `APlayerController`. Cleanly overriding
-them would require every consuming project to use a custom PlayerController subclass,
-which breaks "just enable the plugin" portability. Instead, this plugin registers two
-new, independent console commands via `IConsoleManager`:
+Native `BugIt`/`BugItGo` live in two different engine classes depending on context
+(`UCheatManager` in-game, `UEditorEngine` while browsing in the editor — see Purpose
+above), neither of which this plugin can cleanly subclass/override project-wide without
+either requiring a custom `CheatManager` class per project (breaks "just enable the
+plugin" portability) or patching engine-only editor exec dispatch (not possible from a
+plugin at all). Instead, this plugin registers two new, independent console commands
+via `IConsoleManager`:
 
 - `BugItPlus "<description>"`
 - `BugItGoPlus "<go-string>"`
@@ -110,18 +126,26 @@ gracefully by construction.
 
 1. Console command hits its handler in the Runtime module.
 2. Resolve a location + map name, in order:
-   - **PIE/packaged, pawn exists** — `PlayerController->PlayerCameraManager` for
-     location/rotation, `GetWorld()->GetMapName()` for the map. Same source vanilla
-     `BugIt` uses.
+   - **PIE/packaged, pawn exists** — same source vanilla `UCheatManager::BugIt` uses:
+     `PlayerController->GetPlayerViewPoint()`, overridden with the pawn's actor
+     location when a pawn exists; map name from `GetWorld()->GetMapName()`.
    - **Editor, not playing** — call `EditorCaptureDelegate.Execute()`; the Editor
      module's bound implementation reads the active level-viewport camera transform
-     and the currently open level's name.
+     and the currently open level's name (vanilla's editor-side `BugIt` doesn't
+     capture a map name at all today — this is new).
    - **Neither available** — log a warning and abort. No partial/silent report.
-3. Capture a screenshot, reusing vanilla's screenshot request path as-is.
-4. Build the go-string: `"MapName X Y Z Pitch Yaw Roll"`.
-5. Write the report to `Saved/Bugit/` (see Storage below).
+3. Capture a screenshot. In the PIE/packaged case, reuse vanilla's mechanism exactly:
+   `PlayerController->ConsoleCommand(TEXT("BUGSCREENSHOTWITHHUDINFO <path>"))`. In the
+   editor-only case there's no equivalent to reuse (vanilla's editor path doesn't
+   screenshot), so this step is skipped when there's no pawn/game world.
+4. Build the go-string: `"MapName X Y Z Pitch Yaw Roll"`. Note this is a **new format**,
+   not an extension of vanilla's — vanilla's go-string has no map name in it, so
+   `BugItGoPlus` needs its own parser rather than reusing engine parsing helpers like
+   `GetFVECTORSpaceDelimited`.
+5. Write the report to `Saved/BugItPlus/<PlatformName>/<desc>/` (see Storage below).
 6. Copy the go-string to the clipboard via `FPlatformApplicationMisc::ClipboardCopy()`
-   (an `ApplicationCore` API, available in Runtime, no Editor dependency).
+   (an `ApplicationCore` API, available in Runtime, no Editor dependency). This is the
+   actual gap being closed — vanilla's in-game `BugIt` never does this.
 7. Log confirmation to screen/output log.
 
 ### `BugItGoPlus "<go-string>"`
@@ -131,7 +155,7 @@ gracefully by construction.
 
    | | Same map | Different map |
    |---|---|---|
-   | **PIE/packaged, pawn exists** | Teleport pawn directly (`SetActorLocationAndRotation`) — same as vanilla `BugItGo` | `UGameplayStatics::OpenLevel(...)`, then a one-shot binding on `FCoreUObjectDelegates::PostLoadMapWithWorld` applies the saved transform to the new pawn once the map finishes loading, then unbinds itself |
+   | **PIE/packaged, pawn exists** | Teleport pawn using the same approach as vanilla `UCheatManager::BugItWorker`: toggle ghost mode, `Pawn->TeleportTo()` + `FaceRotation()`, `PlayerController->SetControlRotation()`, toggle ghost mode again | `UGameplayStatics::OpenLevel(...)`, then a one-shot binding on `FCoreUObjectDelegates::PostLoadMapWithWorld` applies the same teleport sequence to the new pawn once the map finishes loading, then unbinds itself |
    | **Editor, not playing** | `EditorJumpDelegate.Execute(MapName, Transform)` — Editor-side handler just moves the viewport camera | Same delegate call — the Editor-side handler detects the map mismatch itself and calls `LevelEditorSubsystem->LoadLevel()` before moving the camera |
 
 3. Log confirmation ("Jumped to X" / "Loading X...").
@@ -143,22 +167,22 @@ iteration during implementation.
 
 ## Storage format
 
-Deliberately unambitious for v1 — no new convention to learn on top of vanilla:
+Deliberately unambitious for v1 — mirrors vanilla's own convention
+(`FPaths::BugItDir()` = `Saved/BugIt/<PlatformName>/`), just in a sibling folder rather
+than mixed into vanilla's own output, since our go-string format isn't compatible with
+vanilla's parser:
 
-- **Location:** `Saved/Bugit/`, same folder vanilla `BugIt` already uses.
-- **Per-report layout:** one subfolder per report, named from description + timestamp
-  (matching vanilla's existing convention so old and new reports sit side-by-side
-  consistently), containing:
-  - the screenshot (`.png`)
+- **Location:** `Saved/BugItPlus/<PlatformName>/<desc>/`, mirroring vanilla's
+  `Saved/BugIt/<PlatformName>/<desc>/` layout one level over.
+- **Per-report layout:** one subfolder per report, named from description + a
+  sequential suffix (matching `FFileHelper::GenerateNextBitmapFilename`'s convention,
+  the same helper vanilla uses), containing:
+  - the screenshot (`.png`), when one was captured (PIE/packaged only — see flow above)
   - a small text file with: description, map name, and the `BugItGoPlus` string (a
     durable backup of what's already on the clipboard, not the only way to retrieve it)
 - **No manifest/index file in v1.** Each report is self-contained. A central
   JSON/CSV index becomes worth building once a v2 Slate panel needs to enumerate
   reports — building it now with no consumer would be speculative.
-
-**Implementation note:** the exact vanilla folder/file naming convention above is from
-memory, not verified. The first implementation step should read the engine's
-`PlayerController.cpp` source to confirm the precise format before matching it.
 
 ## Testing considerations
 

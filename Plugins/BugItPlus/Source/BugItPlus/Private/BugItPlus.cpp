@@ -4,6 +4,9 @@
 
 #define LOCTEXT_NAMESPACE "FBugItPlusModule"
 
+FBugItPlusEditorCaptureDelegate FBugItPlusModule::EditorCaptureDelegate;
+FBugItPlusEditorJumpDelegate FBugItPlusModule::EditorJumpDelegate;
+
 void FBugItPlusModule::StartupModule()
 {
 	// This code will execute after your module is loaded into memory; the exact timing is specified in the .uplugin file per-module

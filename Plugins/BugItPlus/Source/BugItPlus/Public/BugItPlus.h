@@ -6,6 +6,8 @@
 #include "Delegates/Delegate.h"
 #include "Math/Transform.h"
 
+class IConsoleObject;
+
 DECLARE_DELEGATE_RetVal_TwoParams(bool, FBugItPlusEditorCaptureDelegate, FString& /*OutMapPackageName*/,
                                   FTransform& /*OutTransform*/);
 DECLARE_DELEGATE_RetVal_TwoParams(bool, FBugItPlusEditorJumpDelegate, const FString& /*MapPackageName*/,
@@ -21,4 +23,7 @@ public:
 	static FBugItPlusEditorJumpDelegate EditorJumpDelegate;
 	virtual void StartupModule() override;
 	virtual void ShutdownModule() override;
+
+private:
+	IConsoleObject* BugItPlusCommand = nullptr;
 };

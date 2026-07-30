@@ -1,6 +1,8 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "BugItPlus.h"
+#include "BugItPlusCommands.h"
+#include "HAL/IConsoleManager.h"
 
 #define LOCTEXT_NAMESPACE "FBugItPlusModule"
 
@@ -9,13 +11,20 @@ FBugItPlusEditorJumpDelegate FBugItPlusModule::EditorJumpDelegate;
 
 void FBugItPlusModule::StartupModule()
 {
-	// This code will execute after your module is loaded into memory; the exact timing is specified in the .uplugin file per-module
+	BugItPlusCommand = IConsoleManager::Get().RegisterConsoleCommand(
+		TEXT("BugItPlus"),
+		TEXT(
+			"Captures the current location, map, and a screenshot, then copies a BugItGoPlus string to the clipboard. Usage: BugItPlus <description>"),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&FBugItPlusCommands::HandleBugItPlus));
 }
 
 void FBugItPlusModule::ShutdownModule()
 {
-	// This function may be called during shutdown to clean up your module.  For modules that support dynamic reloading,
-	// we call this function before unloading the module.
+	if (BugItPlusCommand)
+	{
+		IConsoleManager::Get().UnregisterConsoleObject(BugItPlusCommand);
+		BugItPlusCommand = nullptr;
+	}
 }
 
 #undef LOCTEXT_NAMESPACE

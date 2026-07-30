@@ -25,6 +25,10 @@
 		{
 			"Name": "CommonMaps",
 			"Enabled": true
+		},
+		{
+			"Name": "BugItPlus",
+			"Enabled": true
 		}
 	]
 }

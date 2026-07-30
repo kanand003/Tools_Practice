@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -13,7 +13,7 @@ DECLARE_DELEGATE_RetVal_TwoParams(bool, FBugItPlusEditorCaptureDelegate, FString
 DECLARE_DELEGATE_RetVal_TwoParams(bool, FBugItPlusEditorJumpDelegate, const FString& /*MapPackageName*/,
                                   const FTransform& /*Transform*/);
 
-class FBugItPlusModule : public IModuleInterface
+class BUGITPLUS_API FBugItPlusModule : public IModuleInterface
 {
 public:
 	/** Bound by BugItPlusEditor when loaded. Fills OutMapPackageName/OutTransform from the active level viewport. Returns false if unbound or capture f*/

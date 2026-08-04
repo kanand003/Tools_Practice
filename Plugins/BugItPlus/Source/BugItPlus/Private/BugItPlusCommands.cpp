@@ -6,6 +6,7 @@
 #include "BugItPlusGoString.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
+#include "GameFramework/CheatManager.h"
 #include "GameFramework/PlayerController.h"
 #include "GameFramework/Pawn.h"
 #include "HAL/PlatformApplicationMisc.h"
@@ -86,4 +87,71 @@ void FBugItPlusCommands::HandleBugItPlus(const TArray<FString>& Args, UWorld* Wo
 
 	UE_LOG(LogTemp, Log, TEXT("BugItPlus: report saved to %s, BugItGoPlus string copied to clipboard: %s"), *ReportDir,
 	       *GoString);
+}
+
+static void TeleportPlayerController(APlayerController* PlayerController, const FVector& Location, const FRotator& Rotation)
+{
+	if (UCheatManager* CheatManager = PlayerController->CheatManager)
+	{
+		CheatManager->Ghost();
+	}
+
+	if (APawn* Pawn = PlayerController->GetPawn())
+	{
+		Pawn->TeleportTo(Location, Rotation);
+		Pawn->FaceRotation(Rotation, 0.0f);
+	}
+
+	PlayerController->SetControlRotation(Rotation);
+
+	if (UCheatManager* CheatManager = PlayerController->CheatManager)
+	{
+		CheatManager->Ghost();
+	}
+}
+
+void FBugItPlusCommands::HandleBugItGoPlus(const TArray<FString>& Args, UWorld* World)
+{
+	if (Args.Num() == 0)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("BugItGoPlus: usage: BugItGoPlus \"<MapPackageName> X Y Z Pitch Yaw Roll\""));
+		return;
+	}
+
+	const FString GoString = FString::Join(Args, TEXT(" "));
+
+	FString MapPackageName;
+	FVector Location;
+	FRotator Rotation;
+	if (!FBugItPlusGoString::Parse(GoString, MapPackageName, Location, Rotation))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("BugItGoPlus: could not parse go-string '%s'"), *GoString);
+		return;
+	}
+
+	APlayerController* PlayerController = World ? GEngine->GetFirstLocalPlayerController(World) : nullptr;
+
+	if (PlayerController)
+	{
+		const FString CurrentMapPackageName = UWorld::RemovePIEPrefix(World->GetOutermost()->GetName());
+
+		if (CurrentMapPackageName == MapPackageName)
+		{
+			TeleportPlayerController(PlayerController, Location, Rotation);
+			UE_LOG(LogTemp, Log, TEXT("BugItGoPlus: teleported to %s"), *GoString);
+		}
+		else
+		{
+			// Task 7 fills in the cross-map travel-then-teleport branch here.
+			UE_LOG(LogTemp, Warning, TEXT("BugItGoPlus: target map '%s' differs from current map '%s' - cross-map jump not yet implemented"), *MapPackageName, *CurrentMapPackageName);
+		}
+
+		return;
+	}
+
+	FTransform Transform(Rotation, Location);
+	if (!FBugItPlusModule::EditorJumpDelegate.IsBound() || !FBugItPlusModule::EditorJumpDelegate.Execute(MapPackageName, Transform))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("BugItGoPlus: no editor-side jump handler bound"));
+	}
 }

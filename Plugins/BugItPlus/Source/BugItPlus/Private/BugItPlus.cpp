@@ -16,6 +16,10 @@ void FBugItPlusModule::StartupModule()
 		TEXT(
 			"Captures the current location, map, and a screenshot, then copies a BugItGoPlus string to the clipboard. Usage: BugItPlus <description>"),
 		FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&FBugItPlusCommands::HandleBugItPlus));
+	BugItGoPlusCommand = IConsoleManager::Get().RegisterConsoleCommand(
+			  TEXT("BugItGoPlus"),
+			  TEXT("Teleports to a location captured by BugItPlus, switching maps first if needed. Usage: BugItGoPlus \"<MapPackageName> X Y Z Pitch Yaw Roll\""),
+			  FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&FBugItPlusCommands::HandleBugItGoPlus));
 }
 
 void FBugItPlusModule::ShutdownModule()
@@ -24,6 +28,11 @@ void FBugItPlusModule::ShutdownModule()
 	{
 		IConsoleManager::Get().UnregisterConsoleObject(BugItPlusCommand);
 		BugItPlusCommand = nullptr;
+	}
+	if (BugItGoPlusCommand)
+	{
+		IConsoleManager::Get().UnregisterConsoleObject(BugItGoPlusCommand);
+		BugItGoPlusCommand = nullptr;
 	}
 }
 

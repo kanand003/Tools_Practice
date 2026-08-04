@@ -26,4 +26,5 @@ public:
 
 private:
 	IConsoleObject* BugItPlusCommand = nullptr;
+	IConsoleObject* BugItGoPlusCommand = nullptr;
 };

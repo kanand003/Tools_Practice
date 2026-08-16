@@ -13,6 +13,12 @@
 #include "HAL/FileManager.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
+#include "Kismet/GameplayStatics.h"
+#include "UObject/UObjectGlobals.h"
+
+FDelegateHandle FBugItPlusCommands::PendingTeleportHandle;
+FVector FBugItPlusCommands::PendingTeleportLocation;
+FRotator FBugItPlusCommands::PendingTeleportRotation;
 
 static bool ResolveCaptureTransform(UWorld* World, FString& OutMapPackageName, FVector& OutLocation,
                                     FRotator& OutRotation, APlayerController*& OutPlayerController)
@@ -68,7 +74,8 @@ void FBugItPlusCommands::HandleBugItPlus(const TArray<FString>& Args, UWorld* Wo
 
 	const FString GoString = FBugItPlusGoString::Build(MapPackageName, Location, Rotation);
 
-	const FString ReportDir = FString::Printf(TEXT("%sBugItPlus/%s/%s/"), *FPaths::ProjectSavedDir(), ANSI_TO_TCHAR(FPlatformProperties::PlatformName()), *Description);
+	const FString ReportDir = FString::Printf(TEXT("%sBugItPlus/%s/%s/"), *FPaths::ProjectSavedDir(),
+	                                          ANSI_TO_TCHAR(FPlatformProperties::PlatformName()), *Description);
 	IFileManager::Get().MakeDirectory(*ReportDir, /*Tree=*/true);
 
 	if (PlayerController)
@@ -89,7 +96,8 @@ void FBugItPlusCommands::HandleBugItPlus(const TArray<FString>& Args, UWorld* Wo
 	       *GoString);
 }
 
-static void TeleportPlayerController(APlayerController* PlayerController, const FVector& Location, const FRotator& Rotation)
+void FBugItPlusCommands::TeleportPlayerController(APlayerController* PlayerController, const FVector& Location,
+                                                   const FRotator& Rotation)
 {
 	if (UCheatManager* CheatManager = PlayerController->CheatManager)
 	{
@@ -98,8 +106,15 @@ static void TeleportPlayerController(APlayerController* PlayerController, const 
 
 	if (APawn* Pawn = PlayerController->GetPawn())
 	{
-		Pawn->TeleportTo(Location, Rotation);
+		const bool bTeleported = Pawn->TeleportTo(Location, Rotation);
 		Pawn->FaceRotation(Rotation, 0.0f);
+		UE_LOG(LogTemp, Log, TEXT("BugItGoPlus: TeleportPlayerController - Pawn %s, TeleportTo returned %s"),
+		       *Pawn->GetName(), bTeleported ? TEXT("true") : TEXT("false"));
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning,
+		       TEXT("BugItGoPlus: TeleportPlayerController - PlayerController has no Pawn, teleport skipped"));
 	}
 
 	PlayerController->SetControlRotation(Rotation);
@@ -107,6 +122,34 @@ static void TeleportPlayerController(APlayerController* PlayerController, const 
 	if (UCheatManager* CheatManager = PlayerController->CheatManager)
 	{
 		CheatManager->Ghost();
+	}
+}
+
+
+
+void FBugItPlusCommands::HandlePostLoadMapTeleport(UWorld* LoadedWorld)
+{
+	FCoreUObjectDelegates::PostLoadMapWithWorld.Remove(PendingTeleportHandle);
+	PendingTeleportHandle.Reset();
+
+	if (!LoadedWorld)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("BugItGoPlus: HandlePostLoadMapTeleport fired with a null World"));
+		return;
+	}
+
+	if (APlayerController* PlayerController = GEngine->GetFirstLocalPlayerController(LoadedWorld))
+	{
+		TeleportPlayerController(PlayerController, PendingTeleportLocation, PendingTeleportRotation);
+		UE_LOG(LogTemp, Log, TEXT("BugItGoPlus: cross-map jump complete, teleported after loading %s"),
+		       *LoadedWorld->GetOutermost()->GetName());
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning,
+		       TEXT(
+			       "BugItGoPlus: HandlePostLoadMapTeleport fired for %s but GetFirstLocalPlayerController returned null"
+		       ), *LoadedWorld->GetOutermost()->GetName());
 	}
 }
 
@@ -142,15 +185,20 @@ void FBugItPlusCommands::HandleBugItGoPlus(const TArray<FString>& Args, UWorld* 
 		}
 		else
 		{
-			// Task 7 fills in the cross-map travel-then-teleport branch here.
-			UE_LOG(LogTemp, Warning, TEXT("BugItGoPlus: target map '%s' differs from current map '%s' - cross-map jump not yet implemented"), *MapPackageName, *CurrentMapPackageName);
+			PendingTeleportLocation = Location;
+			PendingTeleportRotation = Rotation;
+			PendingTeleportHandle = FCoreUObjectDelegates::PostLoadMapWithWorld.AddStatic(&HandlePostLoadMapTeleport);
+
+			UE_LOG(LogTemp, Log, TEXT("BugItGoPlus: loading %s for cross-map jump"), *MapPackageName);
+			UGameplayStatics::OpenLevel(World, FName(*MapPackageName));
 		}
 
 		return;
 	}
 
 	FTransform Transform(Rotation, Location);
-	if (!FBugItPlusModule::EditorJumpDelegate.IsBound() || !FBugItPlusModule::EditorJumpDelegate.Execute(MapPackageName, Transform))
+	if (!FBugItPlusModule::EditorJumpDelegate.IsBound() || !FBugItPlusModule::EditorJumpDelegate.Execute(
+		MapPackageName, Transform))
 	{
 		UE_LOG(LogTemp, Warning, TEXT("BugItGoPlus: no editor-side jump handler bound"));
 	}

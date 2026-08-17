@@ -8,6 +8,7 @@
 
 FBugItPlusEditorCaptureDelegate FBugItPlusModule::EditorCaptureDelegate;
 FBugItPlusEditorJumpDelegate FBugItPlusModule::EditorJumpDelegate;
+FBugItPlusEditorNotifyDelegate FBugItPlusModule::EditorNotifyDelegate;
 
 void FBugItPlusModule::StartupModule()
 {

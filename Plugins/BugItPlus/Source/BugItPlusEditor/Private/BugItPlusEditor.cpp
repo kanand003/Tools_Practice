@@ -1,8 +1,11 @@
 ﻿#include "BugItPlusEditor.h"
 #include "BugItPlus.h"
 #include "Editor.h"
-#include "LevelEditorViewport.h"
+#include "FileHelpers.h"
 #include "Engine/World.h"
+#include "LevelEditorViewport.h"
+#include "Framework/Notifications/NotificationManager.h"
+#include "Widgets/Notifications/SNotificationList.h"
 
 #define LOCTEXT_NAMESPACE "FBugItPlusEditorModule"
 
@@ -10,12 +13,14 @@ void FBugItPlusEditorModule::StartupModule()
 {
 	FBugItPlusModule::EditorCaptureDelegate.BindStatic(&FBugItPlusEditorModule::HandleEditorCapture);
 	FBugItPlusModule::EditorJumpDelegate.BindStatic(&FBugItPlusEditorModule::HandleEditorJump);
+	FBugItPlusModule::EditorNotifyDelegate.BindStatic(&FBugItPlusEditorModule::HandleEditorNotify);
 }
 
 void FBugItPlusEditorModule::ShutdownModule()
 {
 	FBugItPlusModule::EditorCaptureDelegate.Unbind();
 	FBugItPlusModule::EditorJumpDelegate.Unbind();
+	FBugItPlusModule::EditorNotifyDelegate.Unbind();
 }
 
 bool FBugItPlusEditorModule::HandleEditorCapture(FString& OutMapPackageName, FTransform& OutTransform)
@@ -44,6 +49,19 @@ bool FBugItPlusEditorModule::HandleEditorJump(const FString& MapPackageName, con
 		return false;
 	}
 
+
+	const UWorld* EditorWorld = GEditor->GetEditorWorldContext().World();
+	const FString CurrentMapPackageName = EditorWorld ? EditorWorld->GetOutermost()->GetName() : FString();
+
+	if (CurrentMapPackageName != MapPackageName)
+	{
+		if (!FEditorFileUtils::LoadMap(MapPackageName, /*LoadAsTemplate=*/false, /*bShowProgress=*/true))
+		{
+			UE_LOG(LogTemp, Warning, TEXT("BugItGoPlus: failed to load map '%s'"), *MapPackageName);
+			return false;
+		}
+	}
+
 	const FVector Location = Transform.GetLocation();
 	FRotator Rotation = Transform.Rotator();
 	Rotation.Roll = 0.0f;
@@ -57,6 +75,13 @@ bool FBugItPlusEditorModule::HandleEditorJump(const FString& MapPackageName, con
 	GEditor->RedrawLevelEditingViewports();
 
 	return true;
+}
+
+void FBugItPlusEditorModule::HandleEditorNotify(const FString& Message)
+{
+	FNotificationInfo Info(FText::FromString(Message));
+	Info.ExpireDuration = 5.0f;
+	FSlateNotificationManager::Get().AddNotification(Info);
 }
 
 #undef LOCTEXT_NAMESPACE

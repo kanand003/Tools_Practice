@@ -19,6 +19,8 @@ public class BugItPlusEditor : ModuleRules
                 "CoreUObject",
                 "Engine",
                 "UnrealEd",
+                "Slate",
+                "SlateCore",
                 "BugItPlus"
             }
         );

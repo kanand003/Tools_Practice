@@ -1,7 +1,6 @@
 ﻿#pragma once
 
 #include "CoreMinimal.h"
-#include "Modules/ModuleManager.h"
 
 class FBugItPlusEditorModule : public IModuleInterface
 {
@@ -11,4 +10,5 @@ public:
 private:
     static bool HandleEditorCapture(FString& OutMapPackageName, FTransform& OutTransform);
     static bool HandleEditorJump(const FString& MapPackageName, const FTransform& Transform);
+    static void HandleEditorNotify(const FString& Message);
 };

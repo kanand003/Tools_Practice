@@ -92,8 +92,15 @@ void FBugItPlusCommands::HandleBugItPlus(const TArray<FString>& Args, UWorld* Wo
 
 	FPlatformApplicationMisc::ClipboardCopy(*GoString);
 
-	UE_LOG(LogTemp, Log, TEXT("BugItPlus: report saved to %s, BugItGoPlus string copied to clipboard: %s"), *ReportDir,
-	       *GoString);
+	UE_LOG(LogTemp, Log, TEXT("BugItPlus: report saved to %s, BugItGoPlus string copied to clipboard: %s"), *ReportDir, *GoString);
+	if (PlayerController)
+	{
+		PlayerController->ClientMessage(FString::Printf(TEXT("BugItPlus: '%s' captured, copied to clipboard"), *Description));
+	}
+	else
+	{
+		FBugItPlusModule::EditorNotifyDelegate.ExecuteIfBound(FString::Printf(TEXT("BugItPlus: '%s' captured, go-string copied to clipboard"), *Description));
+	}
 }
 
 void FBugItPlusCommands::TeleportPlayerController(APlayerController* PlayerController, const FVector& Location,
@@ -141,6 +148,7 @@ void FBugItPlusCommands::HandlePostLoadMapTeleport(UWorld* LoadedWorld)
 	if (APlayerController* PlayerController = GEngine->GetFirstLocalPlayerController(LoadedWorld))
 	{
 		TeleportPlayerController(PlayerController, PendingTeleportLocation, PendingTeleportRotation);
+		PlayerController->ClientMessage(FString::Printf(TEXT("BugItGoPlus: teleported to %s"), *LoadedWorld->GetOutermost()->GetName()));
 		UE_LOG(LogTemp, Log, TEXT("BugItGoPlus: cross-map jump complete, teleported after loading %s"),
 		       *LoadedWorld->GetOutermost()->GetName());
 	}
@@ -181,6 +189,7 @@ void FBugItPlusCommands::HandleBugItGoPlus(const TArray<FString>& Args, UWorld* 
 		if (CurrentMapPackageName == MapPackageName)
 		{
 			TeleportPlayerController(PlayerController, Location, Rotation);
+			PlayerController->ClientMessage(FString::Printf(TEXT("BugItGoPlus: teleported to %s"), *MapPackageName));
 			UE_LOG(LogTemp, Log, TEXT("BugItGoPlus: teleported to %s"), *GoString);
 		}
 		else
@@ -197,8 +206,11 @@ void FBugItPlusCommands::HandleBugItGoPlus(const TArray<FString>& Args, UWorld* 
 	}
 
 	FTransform Transform(Rotation, Location);
-	if (!FBugItPlusModule::EditorJumpDelegate.IsBound() || !FBugItPlusModule::EditorJumpDelegate.Execute(
-		MapPackageName, Transform))
+	if (FBugItPlusModule::EditorJumpDelegate.IsBound() && FBugItPlusModule::EditorJumpDelegate.Execute(MapPackageName, Transform))
+	{
+		FBugItPlusModule::EditorNotifyDelegate.ExecuteIfBound(FString::Printf(TEXT("BugItGoPlus: teleported to %s"), *MapPackageName));
+	}
+	else
 	{
 		UE_LOG(LogTemp, Warning, TEXT("BugItGoPlus: no editor-side jump handler bound"));
 	}
